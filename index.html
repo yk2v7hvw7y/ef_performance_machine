@@ -38,6 +38,9 @@
     justify-content: center;
     align-items: center;
     border-radius: 12px;
+    /* 让手机浏览器（尤其 iOS Safari）把遮罩识别为"可点击元素"，
+       否则普通 div 上的 click 事件在部分手机上不触发 */
+    cursor: pointer;
   }
   #overlay.show { display: flex; }
   #panel {
@@ -48,6 +51,7 @@
     border-radius: 14px;
     padding: 16px;
     text-align: center;
+    cursor: default;              /* 面板本身不可点，恢复普通鼠标样式 */
   }
   /* 图片/额外说明框 */
   #mediaBox {
@@ -220,9 +224,27 @@ let stopSounded = [false, false, false];      // 停止声是否已响
 const btnRect = {x: SCREEN_W / 2 - 120, y: SCREEN_H - 100, w: 240, h: 60};
 
 // ==================== 开始抽奖 ====================
+// 随机抽出 3 个互不相同的下标（"洗牌发牌"思路：Fisher–Yates 洗牌算法）
+// 像发扑克牌一样"不放回抽取"，保证 3 个滚轮停在不同数字上
+function pickThreeDifferent() {
+  // 准备一副"牌"：0, 1, 2, ..., ITEM_COUNT-1（每个数字的下标）
+  const deck = ITEMS.map((_, i) => i);
+  // 从后往前，每张牌和它前面（含自己）随机一张牌交换位置
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  // 取洗乱后的前 3 张；若数字不足 3 个则循环补齐（极端情况，正常有 5 个不会触发）
+  const result = [];
+  for (let k = 0; k < 3; k++) {
+    result.push(deck[k % deck.length]);
+  }
+  return result;
+}
+
 function startSpin() {
   ensureAudio();                              // 点击手势中初始化声音
-  targets = ITEMS.map(() => Math.floor(Math.random() * ITEM_COUNT));
+  targets = pickThreeDifferent();             // 3 个滚轮结果互不相同
   // 总距离 = 若干整条 + 落到目标格的对齐距离（保证停在正中间）
   distances = targets.map((t, i) =>
     SPIN_TURNS[i] * STRIP_H + t * ITEM_H);
@@ -362,11 +384,11 @@ function draw(now) {
                  SCREEN_W / 2, REEL_TOP + REEL_H + 35);
   }
 
-  // 版本标记（调试用）：看到右下角有 "v3" 才说明你打开的是修好的新文件
+  // 版本标记（调试用）：看到右下角有 "v4" 才说明你打开的是修好的新文件
   ctx.fillStyle = "#555a78";
   ctx.font = "14px sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText("v3", SCREEN_W - 12, SCREEN_H - 12);
+  ctx.fillText("v4", SCREEN_W - 12, SCREEN_H - 12);
 }
 
 // ==================== 主循环 ====================
@@ -454,10 +476,17 @@ function closePopup() {
 }
 
 // 点击弹窗外面的半透明空白处关闭；点面板本身不关闭
-// 统一用 click，同时兼容电脑鼠标和手机触摸（比 touchstart 更稳定）
+// 电脑鼠标：用 click
 overlay.addEventListener("click", e => {
   if (e.target === overlay) closePopup();
 });
+// 手机触摸：直接监听 touchend（手指抬起）。
+// 部分手机浏览器不会给普通 div 补 click 事件，这一条是手机端的保障
+overlay.addEventListener("touchend", e => {
+  if (e.target !== overlay) return;   // 点在面板上不关
+  e.preventDefault();                 // 阻止浏览器再补一个 click，避免重复触发
+  closePopup();
+}, {passive: false});
 </script>
 </body>
 </html>
