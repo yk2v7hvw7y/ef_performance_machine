@@ -15,14 +15,11 @@
   body {
     display: flex;
     justify-content: center;
-    align-items: flex-start;       /* 顶部对齐：避免 QQ 浏览器算错 100vh 把内容压到屏幕中间 */
+    align-items: flex-start;
     min-height: 100vh;
     padding: 10px;
-    overflow-x: hidden;            /* 兜底：任何情况下都不出现横向滚动 */
+    overflow-x: hidden;
   }
-  /* 必须给舞台一个明确宽度：canvas 的 100% 才有可靠的参照。
-     否则"舞台宽度靠 canvas 撑开、canvas 宽度又相对舞台"形成循环依赖，
-     手机 QQ 内置浏览器会按 canvas 原始 900px 渲染，画面缩在屏幕中间一小块 */
   #stage {
     position: relative;
     width: 100%;
@@ -40,9 +37,6 @@
 
   /* ---------- 中奖弹窗 ---------- */
   #overlay {
-    /* fixed 相对整个手机/浏览器屏幕定位，inset:0 铺满全屏。
-       不能用 absolute：手机上画布会被缩到约 270px 高，遮罩若只贴画布，
-       弹窗比遮罩还高会"伸出"去，四周就看不到也点不到暗色区域 */
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
@@ -50,8 +44,6 @@
     justify-content: center;
     align-items: center;
     z-index: 10;                  /* 保证遮罩和弹窗在最上层 */
-    /* 让手机浏览器（尤其 iOS Safari）把遮罩识别为"可点击元素"，
-       否则普通 div 上的 click 事件在部分手机上不触发 */
     cursor: pointer;
     /* manipulation：触摸立即响应，不等双击缩放判定；
        也避免上下暗区的轻微触摸被浏览器当成"滚动手势"抢走 */
@@ -111,7 +103,6 @@
 <div id="stage">
   <!-- 游戏画面全部画在这张画布上 -->
   <canvas id="game" width="900" height="660"></canvas>
-
   <!-- 中奖弹窗（默认隐藏） -->
   <div id="overlay">
     <div id="panel">
@@ -125,17 +116,14 @@
     </div>
   </div>
 </div>
-
 <script>
 "use strict";
-
 // ==================== 基本配置（与原 pygame 版一致） ====================
 const SCREEN_W = 900, SCREEN_H = 660;
 const REEL_W = 200, REEL_GAP = 30, ITEM_H = 72;
 const REEL_TOP = 120;
 const REEL_H = ITEM_H * 5;                    // 每个滚轮显示 5 格
 const CENTER_Y = REEL_TOP + REEL_H / 2;
-
 // 3 个滚轮的窗口矩形
 const TOTAL_W = REEL_W * 3 + REEL_GAP * 2;
 const REEL_X0 = (SCREEN_W - TOTAL_W) / 2;
@@ -143,14 +131,13 @@ const REEL_RECTS = [0, 1, 2].map(i => ({
   x: REEL_X0 + i * (REEL_W + REEL_GAP),
   y: REEL_TOP, w: REEL_W, h: REEL_H
 }));
-
 // ==================== 抽奖时间配置 ====================
-const TOTAL_SPIN = 9.0;                       // 整轮总耗时（秒）
+const TOTAL_SPIN = 8.0;                       // 整轮总耗时（秒）
 const STOP_INTERVAL = 0.8;                    // 相邻滚轮停止间隔
 const STOP_TIMES = [
-  TOTAL_SPIN - STOP_INTERVAL * 2,             // 7.4 秒
-  TOTAL_SPIN - STOP_INTERVAL,                 // 8.2 秒
-  TOTAL_SPIN                                  // 9.0 秒
+  TOTAL_SPIN - STOP_INTERVAL * 2,             
+  TOTAL_SPIN - STOP_INTERVAL,                 
+  TOTAL_SPIN                                  
 ];
 const SPIN_TURNS = [6, 8, 10];                // 各滚轮滚动整圈数
 
@@ -164,32 +151,31 @@ const ITEMS = [
   {num: 2, text: "做出图示动作并大喊Ciallo",
    detail: null, image: "slot_assets/Ciallo.jpg"},
   {num: 3, text: "对人群做出以上动作",
-   detail: "横屏高高举起你的手机，手机切换为白屏大声喊出：原神，启动！",
+   detail: "横屏高高举起你的手机，手机切换为白屏大声喊出：原神，启动！！！",
    image: null},
-  {num: 4, text: "测试",
-   detail: "测试",
+  {num: 4, text: "对人群大声说出以上内容",
+   detail: "鸣潮，牛逼！！！",
    image: null},
-  {num: 5, text: "测试",
-   detail: "测试",
-   image: null},
+  {num: 5, text: "模仿图片动作并捧腹大笑",
+   detail: null,
+   image: "slot_assets/milk_dragon.jpg"},
+  {num: 6, text: "回忆那个男人，进行一次猛回头",
+   detail: null,
+   image: "slot_assets/turn_head.jpg"},
 ];
 const ITEM_COUNT = ITEMS.length;
 const CIRCUMFERENCE = ITEM_H * ITEM_COUNT;    // 转一圈的像素长度
-
-// 数字带重复次数：当数字很少时（如只有3个），一圈(216px)短于滚轮窗口(360px)，
-// 滚动时会出现大片空白。把同一组数字重复拼接，使整条带子足够长、始终填满窗口。
+// 数字带重复次数：数字少时一圈短于滚轮窗口，滚动会出现空白，
+// 用 Math.ceil 算出至少需要重复几组才能铺满窗口+上下各一格
 const STRIP_REPEAT = Math.ceil(
   (REEL_H + 2 * ITEM_H) / CIRCUMFERENCE);     // 需要覆盖窗口+上下各一格
 const STRIP_H = CIRCUMFERENCE * STRIP_REPEAT; // 拼接后整条带子的长度
-
 // 颜色
 const COLOR_BG = "#181a30", COLOR_PANEL = "#262a48";
 const COLOR_GOLD = "#ffc83c", COLOR_WHITE = "#f0f2ff";
 const COLOR_GRAY = "#969cb4", COLOR_RED = "#e65a5a";
-
 // ==================== 音效（Web Audio 现场合成，无需素材） ====================
 let audioCtx = null;
-
 function ensureAudio() {
   // 浏览器规定：必须在用户点击之后才能创建/启用声音
   if (!audioCtx) {
@@ -197,7 +183,6 @@ function ensureAudio() {
   }
   if (audioCtx.state === "suspended") audioCtx.resume();
 }
-
 // 播放一个简单的合成音：frequencies 可以是随时间变化的频率
 function playTone(freqStart, freqEnd, duration, volume) {
   if (!audioCtx) return;
@@ -223,7 +208,6 @@ function sfxWin() {
   notes.forEach((f, i) =>
     setTimeout(() => playTone(f, f, 0.25, 0.2), i * 150));
 }
-
 // ==================== 缓动函数 ====================
 // 开始快、结尾平滑减速到 0
 function easeOutCubic(p) { return 1 - Math.pow(1 - p, 3); }
@@ -231,7 +215,6 @@ function easeOutCubic(p) { return 1 - Math.pow(1 - p, 3); }
 // ==================== 游戏状态 ====================
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-
 let state = "idle";                           // idle 等待 / spinning 抽奖中
 let targets = [0, 0, 0];                      // 本轮结果下标
 let distances = [0, 0, 0];                    // 本轮各滚轮总滚动距离
@@ -239,13 +222,10 @@ let startTime = 0;
 let resultIndexes = [0, 0, 0];                // 静止时显示的下标
 let lastTickOffset = [0, 0, 0];               // 上次滴答声时的位置
 let stopSounded = [false, false, false];      // 停止声是否已响
-
 // 开始按钮矩形
 const btnRect = {x: SCREEN_W / 2 - 120, y: SCREEN_H - 100, w: 240, h: 60};
-
 // ==================== 开始抽奖 ====================
 // 随机抽出 3 个互不相同的下标（"洗牌发牌"思路：Fisher–Yates 洗牌算法）
-// 像发扑克牌一样"不放回抽取"，保证 3 个滚轮停在不同数字上
 function pickThreeDifferent() {
   // 准备一副"牌"：0, 1, 2, ..., ITEM_COUNT-1（每个数字的下标）
   const deck = ITEMS.map((_, i) => i);
@@ -261,7 +241,6 @@ function pickThreeDifferent() {
   }
   return result;
 }
-
 function startSpin() {
   ensureAudio();                              // 点击手势中初始化声音
   targets = pickThreeDifferent();             // 3 个滚轮结果互不相同
@@ -274,16 +253,13 @@ function startSpin() {
   state = "spinning";
   closePopup();
 }
-
 // ==================== 每帧更新（动画与音效触发） ====================
 function update(now) {
   if (state !== "spinning") return;
   const elapsed = (now - startTime) / 1000;
-
   for (let i = 0; i < 3; i++) {
     const progress = Math.min(elapsed / STOP_TIMES[i], 1);
     const offset = distances[i] * easeOutCubic(progress);
-
     // 滴答声：每滚过一格（72px）响一次，节奏自动由密变疏
     while (offset - lastTickOffset[i] >= ITEM_H) {
       lastTickOffset[i] += ITEM_H;
@@ -296,7 +272,6 @@ function update(now) {
       resultIndexes[i] = targets[i];
     }
   }
-
   // 全部停止：回到等待状态，播放中奖音
   if (elapsed >= TOTAL_SPIN) {
     resultIndexes = targets.slice();
@@ -304,30 +279,22 @@ function update(now) {
     sfxWin();
   }
 }
-
 // ==================== 绘制 ====================
 // 画一个滚轮；offset 为当前滚动偏移
 function drawReel(i, offset) {
   const r = REEL_RECTS[i];
-
   // 滚轮背景
   ctx.fillStyle = COLOR_PANEL;
   roundRect(r.x, r.y, r.w, r.h, 12);
   ctx.fill();
-
   // 裁剪：数字只画在滚轮窗口内部
   ctx.save();
   ctx.beginPath();
   ctx.rect(r.x, r.y, r.w, r.h);
   ctx.clip();
-
   // 画重复拼接的数字带：每条带子包含 STRIP_REPEAT 组同样的数字
   for (let c = 0; c < STRIP_REPEAT; c++) {
     for (let j = 0; j < ITEM_COUNT; j++) {
-      // 该数字在整条长带上的位置，对带长取模实现循环滚动
-      // 注意：JS 里负数取模结果仍是负数（和 Python 不同），
-      // 所以要先 +STRIP_H 再取一次模，保证结果落在 0~STRIP_H 之间，
-      // 否则滚动偏移量变大后 rel 全为负，滚轮下半截会没有数字
       let rel = (j * ITEM_H + c * CIRCUMFERENCE - offset) % STRIP_H;
       rel = (rel + STRIP_H) % STRIP_H;
       // 换算成"相对中间格"的位置，让结果数字停在正中央
@@ -343,14 +310,12 @@ function drawReel(i, offset) {
     }
   }
   ctx.restore();
-
   // 中间结果格的金色高亮边框
   ctx.strokeStyle = COLOR_GOLD;
   ctx.lineWidth = 3;
   roundRect(r.x, CENTER_Y - ITEM_H / 2, r.w, ITEM_H, 8);
   ctx.stroke();
 }
-
 // 圆角矩形路径辅助函数
 function roundRect(x, y, w, h, radius) {
   ctx.beginPath();
@@ -361,19 +326,16 @@ function roundRect(x, y, w, h, radius) {
   ctx.arcTo(x, y, x + w, y, radius);
   ctx.closePath();
 }
-
 function draw(now) {
   // 背景
   ctx.fillStyle = COLOR_BG;
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-
   // 标题
   ctx.fillStyle = COLOR_GOLD;
   ctx.font = "bold 40px 'Microsoft YaHei', sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("翼遥动漫社-表演大挑战", SCREEN_W / 2, 60);
-
   // 3 个滚轮
   for (let i = 0; i < 3; i++) {
     let offset;
@@ -386,7 +348,6 @@ function draw(now) {
     }
     drawReel(i, offset);
   }
-
   // 开始按钮（抽奖中变灰）
   ctx.fillStyle = state === "spinning" ? "#5a5f78" : COLOR_RED;
   roundRect(btnRect.x, btnRect.y, btnRect.w, btnRect.h, 30);
@@ -395,7 +356,6 @@ function draw(now) {
   ctx.font = "bold 26px 'Microsoft YaHei', sans-serif";
   ctx.fillText(state === "spinning" ? "抽奖中…" : "开始抽奖",
                SCREEN_W / 2, btnRect.y + btnRect.h / 2);
-
   // 操作提示
   if (state === "idle") {
     ctx.fillStyle = COLOR_GRAY;
@@ -403,14 +363,12 @@ function draw(now) {
     ctx.fillText("抽奖结束后，点击滚轮中的数字查看挑战",
                  SCREEN_W / 2, REEL_TOP + REEL_H + 35);
   }
-
-  // 版本标记（调试用）：看到右下角有 "v7" 才说明你打开的是修好的新文件
+  // 版本标记（调试用）：看到右下角有 "v7" 才说明打开的是修好的新文件
   ctx.fillStyle = "#555a78";
   ctx.font = "14px sans-serif";
   ctx.textAlign = "right";
   ctx.fillText("v7", SCREEN_W - 12, SCREEN_H - 12);
 }
-
 // ==================== 主循环 ====================
 function frame(now) {
   update(now);
@@ -418,7 +376,6 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-
 // ==================== 点击处理 ====================
 canvas.addEventListener("mousedown", e => {
   handleClick(getCanvasPos(e));
@@ -429,7 +386,6 @@ canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
   handleClick(getCanvasPos(t));
 }, {passive: false});
-
 // 把鼠标/触摸位置换算成画布内部坐标（兼容手机缩放显示）
 function getCanvasPos(e) {
   const rect = canvas.getBoundingClientRect();
@@ -438,24 +394,20 @@ function getCanvasPos(e) {
     y: (e.clientY - rect.top) * (canvas.height / rect.height)
   };
 }
-
 function inRect(pos, r) {
   return pos.x >= r.x && pos.x <= r.x + r.w &&
          pos.y >= r.y && pos.y <= r.y + r.h;
 }
-
 function handleClick(pos) {
   // 弹窗打开时点画布不响应（关闭弹窗由点遮罩处理）
   if (document.getElementById("overlay").classList.contains("show")) return;
   // 抽奖中不接受点击
   if (state === "spinning") return;
-
   // 点开始按钮
   if (inRect(pos, btnRect)) {
     startSpin();
     return;
   }
-
   // 点滚轮中间数字格 -> 弹窗
   for (let i = 0; i < 3; i++) {
     const centerBox = {
@@ -468,17 +420,14 @@ function handleClick(pos) {
     }
   }
 }
-
 // ==================== 弹窗打开/关闭 ====================
 const overlay = document.getElementById("overlay");
 const popImg = document.getElementById("popImg");
 const detailText = document.getElementById("detailText");
-
 function openPopup(item) {
   // 数字与正文
   document.getElementById("popNum").textContent = item.num;
   document.getElementById("popText").textContent = item.text;
-
   // 媒体框：有图片显示图片；无图片显示额外说明（没有说明则提示）
   if (item.image) {
     popImg.src = item.image;
@@ -489,29 +438,18 @@ function openPopup(item) {
     detailText.textContent = item.detail || "（无额外说明）";
   }
   overlay.classList.add("show");
-  // 关键：锁住背景页滚动。否则手机上点弹窗"上下"暗区时，
-  // 手指轻微的上下移动会被浏览器当成滚动网页，点击事件被抢走，
-  // 表现就是"左右空白能关闭、上下空白点不动"
   document.body.style.overflow = "hidden";
 }
-
 function closePopup() {
   overlay.classList.remove("show");
   document.body.style.overflow = "";   // 恢复背景页滚动
 }
-
-// 点击弹窗外面的半透明空白处关闭；点面板本身不关闭
-// 用 Pointer Events 一套代码同时管鼠标和手机触摸，
-// 并按"手指/鼠标的实际坐标"判断，比 e.target 更可靠：
-// 即使触摸被浏览器手势处理干扰，坐标永远和眼睛看到的位置一致
 const panel = document.getElementById("panel");
 let pressedOutside = false;          // 按下时手指是否在面板外面
-
 function pointOutsidePanel(x, y) {
   const b = panel.getBoundingClientRect();
   return x < b.left || x > b.right || y < b.top || y > b.bottom;
 }
-
 overlay.addEventListener("pointerdown", e => {
   pressedOutside = pointOutsidePanel(e.clientX, e.clientY);
 });
