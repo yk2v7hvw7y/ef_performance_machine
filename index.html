@@ -454,12 +454,10 @@ function closePopup() {
 }
 
 // 点击弹窗外面的半透明空白处关闭；点面板本身不关闭
-overlay.addEventListener("mousedown", e => {
+// 统一用 click，同时兼容电脑鼠标和手机触摸（比 touchstart 更稳定）
+overlay.addEventListener("click", e => {
   if (e.target === overlay) closePopup();
 });
-overlay.addEventListener("touchstart", e => {
-  if (e.target === overlay) closePopup();
-}, {passive: true});
 </script>
 </body>
 </html>
