@@ -31,13 +31,16 @@
 
   /* ---------- 中奖弹窗 ---------- */
   #overlay {
-    position: absolute;
+    /* fixed 相对整个手机/浏览器屏幕定位，inset:0 铺满全屏。
+       不能用 absolute：手机上画布会被缩到约 270px 高，遮罩若只贴画布，
+       弹窗比遮罩还高会"伸出"去，四周就看不到也点不到暗色区域 */
+    position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
     display: none;                 /* 默认隐藏 */
     justify-content: center;
     align-items: center;
-    border-radius: 12px;
+    z-index: 10;                  /* 保证遮罩和弹窗在最上层 */
     /* 让手机浏览器（尤其 iOS Safari）把遮罩识别为"可点击元素"，
        否则普通 div 上的 click 事件在部分手机上不触发 */
     cursor: pointer;
@@ -46,6 +49,10 @@
   #panel {
     width: 380px;
     max-width: 90%;
+    /* 最多占屏幕高度的 90%，内容太多时面板内部滚动，
+       保证弹窗上下始终留得出暗色区域可以点 */
+    max-height: 90vh;
+    overflow-y: auto;
     background: #262a48;
     border: 2px solid #ffc83c;
     border-radius: 14px;
@@ -384,11 +391,11 @@ function draw(now) {
                  SCREEN_W / 2, REEL_TOP + REEL_H + 35);
   }
 
-  // 版本标记（调试用）：看到右下角有 "v4" 才说明你打开的是修好的新文件
+  // 版本标记（调试用）：看到右下角有 "v5" 才说明你打开的是修好的新文件
   ctx.fillStyle = "#555a78";
   ctx.font = "14px sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText("v4", SCREEN_W - 12, SCREEN_H - 12);
+  ctx.fillText("v5", SCREEN_W - 12, SCREEN_H - 12);
 }
 
 // ==================== 主循环 ====================
